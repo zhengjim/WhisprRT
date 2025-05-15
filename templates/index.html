@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhisprRT - 本地实时语音转文字工具</title>
+    <link href="/static/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --secondary-color: #6c757d;
+            --success-color: #198754;
+            --bg-color: #f8f9fa;
+            --text-color: #212529;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--secondary-color);
+            font-size: 1.1rem;
+        }
+
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        #transcription {
+            background-color: white;
+            padding: 1.5rem;
+            height: 400px;
+            overflow-y: auto;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .transcript-entry {
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .timestamp {
+            color: var(--secondary-color);
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn {
+            padding: 0.6rem 1.2rem;
+            font-weight: 500;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            gap: 0.15rem;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #0b5ed7;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background-color: #157347;
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #5c636a;
+        }
+
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background-color: #bb2d3b;
+        }
+
+        .btn-icon {
+            font-size: 1.2rem;
+        }
+
+        .settings-panel {
+            margin-top: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-select, .form-control {
+            border-radius: 5px;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .form-check {
+            margin-bottom: 0.5rem;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 5px 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .footer {
+            margin-top: auto;
+            text-align: center;
+            padding: 2rem 0;
+            background-color: #f1f3f5;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .footer p {
+            color: var(--secondary-color);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .status-active {
+            background-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+        }
+
+        .status-inactive {
+            background-color: #6b7280;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 1rem auto;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+
+            #transcription {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WhisprRT</h1>
+            <p class="subtitle">基于 Whisper 的本地实时语音转文字工具，完全离线运行，保护隐私</p>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <span>
+                            <span id="status-indicator" class="status-indicator status-inactive"></span>
+                            <span id="status-text">准备就绪</span>
+                        </span>
+                        <div>
+                            <button id="copyBtn" class="btn btn-sm btn-light" onclick="copyTranscript()">
+                                <i class="bi bi-clipboard"></i> 复制全文
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="transcription" class="position-relative"></div>
+                        
+                        <div class="controls mt-3">
+                            <button id="startBtn" class="btn btn-primary" onclick="startListening()">
+                                <i class="bi bi-mic-fill"></i> 开始转写
+                            </button>
+                            <button id="stopBtn" class="btn btn-danger" onclick="stopListening()" disabled>
+                                <i class="bi bi-stop-fill"></i> 停止转写
+                            </button>
+                            <button id="clearBtn" class="btn btn-secondary" onclick="clearTranscript()">
+                                <i class="bi bi-trash"></i> 清空记录
+                            </button>
+                            <button id="saveBtn" class="btn btn-success" onclick="saveText()">
+                                <i class="bi bi-download"></i> 保存文字
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">设置</div>
+                    <div class="card-body">
+                        <!-- 添加音频设备选择 -->
+                        <div class="form-group device-select">
+                            <label for="deviceSelect" class="form-label">音频输入设备</label>
+                            <select id="deviceSelect" class="form-select" onchange="selectDevice()">
+                                <option value="default">加载中...</option>
+                            </select>
+                            <div id="deviceInfo" class="device-info">正在加载可用设备...</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modelSelect" class="form-label">选择模型</label>
+                            <select id="modelSelect" class="form-select" onchange="changeModel()">
+                                <option value="tiny">tiny - 最小模型，速度最快</option>
+                                <option value="base">base - 基础模型，速度快</option>
+                                <option value="small">small - 小型模型，平衡</option>
+                                <option value="large-v3-turbo" selected>large-v3-turbo - 大型模型，最高精度</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="languageSelect" class="form-label">语言</label>
+                            <select id="languageSelect" class="form-select" onchange="changeLanguage()">
+                                <option value="zh" selected>中文</option>
+                                <option value="en">英文</option>
+                                <option value="auto">自动检测</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="showTimestamp" checked onchange="toggleTimestamp()">
+                            <label class="form-check-label" for="showTimestamp">显示时间戳</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">使用说明</div>
+                    <div class="card-body">
+                        <ol>
+                            <li>选择合适的音频输入设备</li>
+                            <li>选择合适的模型和语言</li>
+                            <li>点击"开始转写"按钮开始录音</li>
+                            <li>说话时会自动转写您的语音</li>
+                            <li>完成后点击"停止转写"</li>
+                            <li>可以复制或保存转写结果</li>
+                        </ol>
+                        <p class="text-muted small">注意：首次加载模型可能需要一些时间，请耐心等待</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="toast-container"></div>
+    
+    <div class="footer">
+        <p>由 <a href="https://github.com/zhengjim" target="_blank">zhengjim</a> 提供支持 | 基于 Whisper开发</p>
+    </div>
+
+    <script>
+        // 替换 Socket.IO 连接为原生 WebSocket
+        let socket = null;
+        let isConnected = false;
+        const transcriptionDiv = document.getElementById('transcription');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusIndicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const modelSelect = document.getElementById('modelSelect');
+        const languageSelect = document.getElementById('languageSelect');
+        const showTimestampCheckbox = document.getElementById('showTimestamp');
+        const deviceSelect = document.getElementById('deviceSelect');
+        const deviceInfo = document.getElementById('deviceInfo');
+        
+        let isRunning = false;
+        let showTimestamp = true;
+        let recordingStartTime = 0;
+        let recordingTimerInterval = null;
+        let currentTimestamp = '00:00:00';
+        let audioDevices = [];
+        let defaultDeviceId = null;
+        
+        // 连接 WebSocket
+        function connectWebSocket() {
+            // 使用 wss:// 或 ws:// 取决于当前页面是 https 还是 http
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            socket = new WebSocket(wsUrl);
+            
+            // 连接建立时的处理
+            socket.onopen = function() {
+                console.log('WebSocket 连接已建立');
+                isConnected = true;
+                showToast('已连接到服务器', 'success');
+                
+                // 加载音频设备列表
+                loadAudioDevices();
+            };
+            
+            // 接收消息的处理
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                // 根据事件类型处理不同的消息
+                switch(data.event) {
+                    case 'transcription':
+                        handleTranscription(data.data);
+                        break;
+                    case 'status':
+                        handleStatus(data.data);
+                        break;
+                    case 'timestamp_setting':
+                        handleTimestampSetting(data.data);
+                        break;
+                    case 'error':
+                        showToast(data.data.message, 'error');
+                        break;
+                    case 'clear':
+                        transcriptionDiv.innerHTML = '';
+                        break;
+                    default:
+                        console.log('收到未知类型的消息:', data);
+                }
+            };
+            
+            // 连接关闭时的处理
+            socket.onclose = function() {
+                console.log('WebSocket 连接已关闭');
+                isConnected = false;
+                
+                // 尝试重新连接
+                setTimeout(function() {
+                    if (!isConnected) {
+                        showToast('连接已断开，正在尝试重新连接...', 'info');
+                        connectWebSocket();
+                    }
+                }, 3000);
+            };
+            
+            // 连接错误时的处理
+            socket.onerror = function(error) {
+                console.error('WebSocket 错误:', error);
+                showToast('连接错误，请刷新页面重试', 'error');
+            };
+        }
+        
+        /**
+         * 加载可用的音频输入设备
+         */
+        function loadAudioDevices() {
+            fetch('/audio_devices')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'error') {
+                        showToast(data.message, 'error');
+                        deviceInfo.textContent = '获取音频设备失败';
+                        return;
+                    }
+                    
+                    audioDevices = data.devices;
+                    defaultDeviceId = data.default;
+                    
+                    // 清空设备选择下拉菜单
+                    deviceSelect.innerHTML = '';
+                    
+                    // 添加默认选项
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = 'default';
+                    defaultOption.textContent = '系统默认设备';
+                    deviceSelect.appendChild(defaultOption);
+                    
+                    // 添加所有可用设备
+                    audioDevices.forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.id;
+                        option.textContent = device.name;
+                        
+                        // 如果是默认设备，添加标记
+                        if (device.id === defaultDeviceId || device.default) {
+                            option.textContent += ' (默认)';
+                        }
+                        
+                        deviceSelect.appendChild(option);
+                    });
+                    
+                    // 更新设备信息
+                    updateDeviceInfo();
+                })
+                .catch(error => {
+                    console.error('获取音频设备失败:', error);
+                    showToast('获取音频设备失败，请刷新页面重试', 'error');
+                    deviceInfo.textContent = '获取音频设备失败';
+                });
+        }
+        
+        /**
+         * 更新设备信息显示
+         */
+        function updateDeviceInfo() {
+            const selectedDeviceId = deviceSelect.value;
+            
+            if (selectedDeviceId === 'default') {
+                deviceInfo.textContent = '使用系统默认音频输入设备';
+                return;
+            }
+            
+            const selectedDevice = audioDevices.find(device => device.id.toString() === selectedDeviceId);
+            if (selectedDevice) {
+                deviceInfo.textContent = `${selectedDevice.name} - ${selectedDevice.channels} 通道`;
+                if (selectedDevice.id === defaultDeviceId || selectedDevice.default) {
+                    deviceInfo.innerHTML += ' <span class="device-default-badge">默认</span>';
+                }
+            } else {
+                deviceInfo.textContent = '未知设备';
+            }
+        }
+        
+        /**
+         * 选择音频设备
+         */
+        function selectDevice() {
+            const deviceId = deviceSelect.value;
+            
+            if (isRunning) {
+                showToast('请先停止转写再切换音频设备', 'info');
+                // 恢复之前的选择
+                loadAudioDevices();
+                return;
+            }
+            
+            fetch('/select_device', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ device_id: deviceId })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                        updateDeviceInfo();
+                    } else {
+                        showToast(data.message, 'error');
+                        // 恢复之前的选择
+                        loadAudioDevices();
+                    }
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                    // 恢复之前的选择
+                    loadAudioDevices();
+                });
+        }
+        
+        // 页面加载时连接 WebSocket
+        window.addEventListener('load', connectWebSocket);
+        
+        /**
+         * 处理转写结果
+         * @param {Object} data - 转写数据
+         */
+        function handleTranscription(data) {
+            const entry = document.createElement('div');
+            entry.className = 'transcript-entry';
+            
+            if (showTimestamp && data.timestamp) {
+                const timestamp = document.createElement('span');
+                timestamp.className = 'timestamp';
+                timestamp.textContent = `[${data.timestamp}]`;
+                entry.appendChild(timestamp);
+            }
+            
+            const text = document.createElement('span');
+            text.className = 'transcript-text';
+            text.textContent = data.text;
+            entry.appendChild(text);
+            
+            transcriptionDiv.appendChild(entry);
+            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+        }
+        
+        /**
+         * 处理状态更新
+         * @param {Object} data - 状态数据
+         */
+        function handleStatus(data) {
+            if (data.status === 'started' || data.status === 'already_started') {
+                updateStatus(true);
+            } else if (data.status === 'stopped' || data.status === 'already_stopped') {
+                updateStatus(false);
+            } else if (data.status === 'connected') {
+                // 连接成功后，更新模型和语言选择
+                if (data.model) {
+                    modelSelect.value = data.model;
+                }
+                if (data.language) {
+                    languageSelect.value = data.language;
+                }
+            }
+        }
+        
+        /**
+         * 处理时间戳设置更新
+         * @param {Object} data - 时间戳设置数据
+         */
+        function handleTimestampSetting(data) {
+            showTimestamp = data.show_timestamp;
+            showTimestampCheckbox.checked = showTimestamp;
+        }
+        
+        /**
+         * 更新录音计时器
+         */
+        function updateRecordingTimer() {
+            if (recordingTimerInterval) {
+                clearInterval(recordingTimerInterval);
+            }
+            
+            recordingTimerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const hours = Math.floor(elapsed / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                currentTimestamp = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        }
+        
+        // 显示通知
+        function showToast(message, type = 'info') {
+            const toastContainer = document.querySelector('.toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast show bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} text-white`;
+            toast.style.marginBottom = '10px';
+            
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <strong class="me-auto">${type === 'error' ? '错误' : type === 'success' ? '成功' : '提示'}</strong>
+                    <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // 5秒后自动关闭
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+
+        // 更新状态指示器
+        function updateStatus(running) {
+            isRunning = running;
+            statusIndicator.className = `status-indicator ${running ? 'status-active' : 'status-inactive'}`;
+            statusText.textContent = running ? '正在转写...' : '准备就绪';
+            startBtn.disabled = running;
+            stopBtn.disabled = !running;
+            modelSelect.disabled = running;
+            deviceSelect.disabled = running;
+            
+            // 重置录音计时器
+            if (running) {
+                recordingStartTime = Date.now();
+                updateRecordingTimer();
+            } else {
+                if (recordingTimerInterval) {
+                    clearInterval(recordingTimerInterval);
+                    recordingTimerInterval = null;
+                }
+            }
+        }
+
+        // 开始监听
+        function startListening() {
+            fetch('/start')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'started') {
+                        updateStatus(true);
+                        showToast('语音转写已开始！', 'success');
+                    } else if (data.status === 'already_started') {
+                        showToast('语音转写已经在运行中！', 'info');
+                    } else {
+                        showToast('启动失败: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+
+        // 停止监听
+        function stopListening() {
+            fetch('/stop')
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(false);
+                    showToast('语音转写已停止', 'info');
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+
+        // 清空转写记录
+        function clearTranscript() {
+            fetch('/clear')
+                .then(response => response.json())
+                .then(data => {
+                    transcriptionDiv.innerHTML = '';
+                    showToast('转写记录已清空', 'info');
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+
+        // 保存文本
+        function saveText() {
+            if (transcriptionDiv.textContent.trim() === '') {
+                showToast('没有可保存的内容', 'info');
+                return;
+            }
+            
+            fetch('/save')
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    } else {
+                        return response.json().then(data => {
+                            throw new Error(data.message || '保存失败');
+                        });
+                    }
+                })
+                .then(data => {
+                    if (data instanceof Blob) {
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(data);
+                        link.download = 'transcript_output.txt';
+                        link.click();
+                        showToast('文件保存成功', 'success');
+                    }
+                })
+                .catch(error => {
+                    showToast('保存失败: ' + error, 'error');
+                });
+        }
+
+        // 复制转写内容
+        function copyTranscript() {
+            const entries = transcriptionDiv.querySelectorAll('.transcript-entry');
+            
+            if (entries.length === 0) {
+                showToast('没有可复制的内容', 'info');
+                return;
+            }
+            
+            let text = '';
+            entries.forEach(entry => {
+                const timestampEl = entry.querySelector('.timestamp');
+                const textEl = entry.querySelector('.transcript-text');
+                
+                if (timestampEl && textEl) {
+                    text += `${timestampEl.textContent} ${textEl.textContent}\n`;
+                } else if (textEl) {
+                    text += `${textEl.textContent}\n`;
+                }
+            });
+            
+            if (text.trim() === '') {
+                showToast('没有可复制的内容', 'info');
+                return;
+            }
+            
+            // 使用临时元素复制文本
+            const tempElement = document.createElement('textarea');
+            tempElement.value = text;
+            document.body.appendChild(tempElement);
+            tempElement.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempElement);
+            
+            showToast('文本已复制到剪贴板', 'success');
+        }
+
+        // 切换模型
+        function changeModel() {
+            if (isRunning) {
+                showToast('请先停止转写再切换模型', 'info');
+                return;
+            }
+            
+            const model = modelSelect.value;
+            
+            fetch('/change_model', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model: model })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+
+        // 切换语言
+        function changeLanguage() {
+            const language = languageSelect.value;
+            
+            fetch('/change_language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ language: language })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(data.message, 'success');
+                    } else {
+                        showToast(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+
+        // 切换时间戳显示
+        function toggleTimestamp() {
+            showTimestamp = showTimestampCheckbox.checked;
+            
+            fetch('/toggle_timestamp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ show_timestamp: showTimestamp })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast(`时间戳显示已${showTimestamp ? '开启' : '关闭'}`, 'info');
+                    }
+                })
+                .catch(error => {
+                    showToast('请求错误: ' + error, 'error');
+                });
+        }
+    </script>
+</body>
+</html>
