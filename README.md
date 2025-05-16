@@ -35,6 +35,7 @@
 git clone https://github.com/zhengjim/WhisprRT.git
 cd WhisprRT
 uv sync
+source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
@@ -44,4 +45,7 @@ http://127.0.0.1:8000/
 
 **只建议在127.0.0.1运行，不然可能会被其他人访问到**。
 
-默认使用large-v3-turbo模型，效果更好，又快，又准确，推荐使用。 电脑性能一般的话，自行选择其他的模型，因为是实时转写，所以速度慢的我就没放进来了。
+默认使用large-v3-turbo模型，效果更好，又快，又准确，推荐使用。 电脑性能一般的话，自行选择其他的模型，因为是实时转写，所以速度慢的model我就没放进来了。
+
+
+## 效果

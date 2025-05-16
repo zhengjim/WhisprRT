@@ -23,6 +23,9 @@ class TranscriptionService:
         self.running = False
         self.current_language = DEFAULT_LANGUAGE
         self.connected_websockets = set()
+        self.start_time = None  # 新增：记录录音开始时间
+        self.energy_threshold = 0.01  # 音频能量阈值
+        self.confidence_threshold = 0.5  # 置信度阈值
     
     def audio_callback(self, indata, frames, time_info, status):
         """
@@ -52,6 +55,20 @@ class TranscriptionService:
             except Exception as e:
                 logger.error(f"WebSocket发送消息失败: {str(e)}")
     
+    def is_silence(self, audio_data):
+        """
+        检测是否为静音或噪音
+        
+        Args:
+            audio_data: 音频数据
+            
+        Returns:
+            bool: 是否为静音
+        """
+        # 计算音频能量
+        energy = np.mean(np.abs(audio_data))
+        return energy < self.energy_threshold
+
     def listen_loop(self):
         """语音转写主循环，从队列获取音频数据并进行转写"""
         logger.info("开始语音转写线程")
@@ -70,24 +87,41 @@ class TranscriptionService:
                     if time.time() - self.last_time > BUFFER_SECONDS:
                         if len(self.buffer) >= SAMPLE_RATE:
                             samples = self.buffer[:, 0]
-                            try:
-                                segments, _ = whisper_service.transcribe(samples, self.current_language)
-                                
-                                for seg in segments:
-                                    text = seg.text.strip()
-                                    if text:  # 只发送非空文本
-                                        timestamp = time.strftime("%H:%M:%S", time.localtime())
-                                        # 使用异步事件循环发送WebSocket消息
-                                        asyncio.run(self.broadcast_to_websockets('transcription', {
-                                            'text': text, 
-                                            'timestamp': timestamp,
-                                            'show_timestamp': True  # 默认显示时间戳
-                                        }))
-                                        self.transcript.append({"text": text, "timestamp": timestamp})
-                                        logger.debug(f"转写文本: {text}")
-                            except Exception as e:
-                                logger.error(f"转写过程出错: {str(e)}")
-                                asyncio.run(self.broadcast_to_websockets('error', {'message': f'转写错误: {str(e)}'}))
+                            
+                            # 检查是否为静音
+                            if not self.is_silence(samples):
+                                try:
+                                    segments, _ = whisper_service.transcribe(samples, self.current_language)
+                                    
+                                    for seg in segments:
+                                        # 使用 avg_logprob 作为置信度指标
+                                        confidence = np.exp(seg.avg_logprob)  # 将 logprob 转换为概率
+                                        if confidence >= self.confidence_threshold:
+                                            text = seg.text.strip()
+                                            if text:  # 只发送非空文本
+                                                # 计算录音时长
+                                                elapsed = int(time.time() - self.start_time)
+                                                hours = elapsed // 3600
+                                                minutes = (elapsed % 3600) // 60
+                                                seconds = elapsed % 60
+                                                timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                                                
+                                                # 使用异步事件循环发送WebSocket消息
+                                                asyncio.run(self.broadcast_to_websockets('transcription', {
+                                                    'text': text, 
+                                                    'timestamp': timestamp,
+                                                    'show_timestamp': True,
+                                                    'confidence': confidence  # 使用转换后的置信度
+                                                }))
+                                                self.transcript.append({
+                                                    "text": text, 
+                                                    "timestamp": timestamp,
+                                                    "confidence": confidence
+                                                })
+                                                logger.debug(f"转写文本: {text} (置信度: {confidence:.2f})")
+                                except Exception as e:
+                                    logger.error(f"转写过程出错: {str(e)}")
+                                    asyncio.run(self.broadcast_to_websockets('error', {'message': f'转写错误: {str(e)}'}))
 
                         self.buffer = np.empty((0, 1), dtype='float32')
                         self.last_time = time.time()
@@ -109,6 +143,7 @@ class TranscriptionService:
         if not self.running:
             self.running = True
             self.transcript = []  # 清空之前的转写记录
+            self.start_time = time.time()  # 新增：记录开始时间
             # 启动后台线程
             thread = threading.Thread(target=self.listen_loop)
             thread.daemon = True
@@ -156,7 +191,7 @@ class TranscriptionService:
                 with open(file_path, "w", encoding="utf-8") as f:
                     for item in self.transcript:
                         if isinstance(item, dict):
-                            f.write(f"[{item['timestamp']}] {item['text']}\n")
+                            f.write(f"[{item['timestamp']}] {item['text']} (置信度: {item['confidence']:.2f})\n")
                         else:
                             f.write(f"{item}\n")
                 logger.info(f"转写结果已保存到: {file_path}")
