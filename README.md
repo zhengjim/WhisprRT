@@ -36,7 +36,7 @@ git clone https://github.com/zhengjim/WhisprRT.git
 cd WhisprRT
 uv sync
 uvicorn app.main:app --reload
-、、、
+```
 
 
 浏览器访问即可
