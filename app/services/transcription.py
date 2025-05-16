@@ -26,6 +26,8 @@ class TranscriptionService:
         self.start_time = None  # 新增：记录录音开始时间
         self.energy_threshold = 0.01  # 音频能量阈值
         self.confidence_threshold = 0.5  # 置信度阈值
+        self.display_mode = "segments"  # 显示模式
+        self.continuous_text = ""  # 新增：用于存储连续显示的文本
     
     def audio_callback(self, indata, frames, time_info, status):
         """
@@ -92,33 +94,32 @@ class TranscriptionService:
                             if not self.is_silence(samples):
                                 try:
                                     segments, _ = whisper_service.transcribe(samples, self.current_language)
+                                    segments_list = list(segments)
                                     
-                                    for seg in segments:
-                                        # 使用 avg_logprob 作为置信度指标
-                                        confidence = np.exp(seg.avg_logprob)  # 将 logprob 转换为概率
+                                    for seg in segments_list:
+                                        confidence = np.exp(seg.avg_logprob)
                                         if confidence >= self.confidence_threshold:
                                             text = seg.text.strip()
-                                            if text:  # 只发送非空文本
-                                                # 计算录音时长
+                                            if text:
                                                 elapsed = int(time.time() - self.start_time)
                                                 hours = elapsed // 3600
                                                 minutes = (elapsed % 3600) // 60
                                                 seconds = elapsed % 60
                                                 timestamp = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                                                 
-                                                # 使用异步事件循环发送WebSocket消息
+                                                # 只推送分段内容
                                                 asyncio.run(self.broadcast_to_websockets('transcription', {
-                                                    'text': text, 
+                                                    'text': text,
                                                     'timestamp': timestamp,
                                                     'show_timestamp': True,
-                                                    'confidence': confidence  # 使用转换后的置信度
+                                                    'confidence': confidence,
+                                                    'mode': 'segments'
                                                 }))
                                                 self.transcript.append({
-                                                    "text": text, 
+                                                    "text": text,
                                                     "timestamp": timestamp,
                                                     "confidence": confidence
                                                 })
-                                                logger.debug(f"转写文本: {text} (置信度: {confidence:.2f})")
                                 except Exception as e:
                                     logger.error(f"转写过程出错: {str(e)}")
                                     asyncio.run(self.broadcast_to_websockets('error', {'message': f'转写错误: {str(e)}'}))
@@ -173,6 +174,7 @@ class TranscriptionService:
             dict: 操作状态
         """
         self.transcript = []
+        self.continuous_text = ""  # 清空连续文本
         logger.info("清空转写记录")
         return {"status": "cleared"}
     
@@ -191,7 +193,8 @@ class TranscriptionService:
                 with open(file_path, "w", encoding="utf-8") as f:
                     for item in self.transcript:
                         if isinstance(item, dict):
-                            f.write(f"[{item['timestamp']}] {item['text']} (置信度: {item['confidence']:.2f})\n")
+                            # 只保存时间戳和文本，不保存置信度
+                            f.write(f"[{item['timestamp']}] {item['text']}\n")
                         else:
                             f.write(f"{item}\n")
                 logger.info(f"转写结果已保存到: {file_path}")
@@ -213,6 +216,22 @@ class TranscriptionService:
         """
         self.current_language = language
         return {"status": "success", "message": f"已切换到语言: {language}"}
+
+    def set_display_mode(self, mode):
+        """
+        设置显示模式
+        
+        Args:
+            mode: 显示模式 ("segments" 或 "transcript")
+            
+        Returns:
+            dict: 操作状态和消息
+        """
+        if mode not in ["segments", "transcript"]:
+            return {"status": "error", "message": "不支持的显示模式"}
+        
+        self.display_mode = mode
+        return {"status": "success", "message": f"已切换到{self.display_mode}模式"}
 
 # 创建全局转写服务实例
 transcription_service = TranscriptionService()

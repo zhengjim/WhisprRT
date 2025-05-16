@@ -339,6 +339,17 @@
                             <input class="form-check-input" type="checkbox" id="showTimestamp" checked onchange="toggleTimestamp()">
                             <label class="form-check-label" for="showTimestamp">显示时间戳</label>
                         </div>
+
+                        <div class="form-group">
+                            <label class="form-label">显示模式</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="displayMode" id="segmentsMode" value="segments" checked>
+                                <label class="btn btn-outline-primary" for="segmentsMode">分段显示</label>
+                                
+                                <input type="radio" class="btn-check" name="displayMode" id="transcriptMode" value="transcript">
+                                <label class="btn btn-outline-primary" for="transcriptMode">连续显示</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -388,6 +399,8 @@
         let currentTimestamp = '00:00:00';
         let audioDevices = [];
         let defaultDeviceId = null;
+        let transcriptList = [];
+        let currentMode = "segments"; // 默认分段显示
         
         // 连接 WebSocket
         function connectWebSocket() {
@@ -571,23 +584,12 @@
          * @param {Object} data - 转写数据
          */
         function handleTranscription(data) {
-            const entry = document.createElement('div');
-            entry.className = 'transcript-entry';
-            
-            if (showTimestamp && data.timestamp) {
-                const timestamp = document.createElement('span');
-                timestamp.className = 'timestamp';
-                timestamp.textContent = `[${data.timestamp}]`;
-                entry.appendChild(timestamp);
-            }
-            
-            const text = document.createElement('span');
-            text.className = 'transcript-text';
-            text.textContent = data.text;
-            entry.appendChild(text);
-            
-            transcriptionDiv.appendChild(entry);
-            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+            // 只维护分段列表
+            transcriptList.push({
+                text: data.text,
+                timestamp: data.timestamp
+            });
+            renderTranscription();
         }
         
         /**
@@ -720,7 +722,8 @@
             fetch('/clear')
                 .then(response => response.json())
                 .then(data => {
-                    transcriptionDiv.innerHTML = '';
+                    transcriptList = [];
+                    renderTranscription();
                     showToast('转写记录已清空', 'info');
                 })
                 .catch(error => {
@@ -869,6 +872,80 @@
                 .catch(error => {
                     showToast('请求错误: ' + error, 'error');
                 });
+        }
+
+        // 切换显示模式
+        function changeDisplayMode(mode) {
+            fetch('/change_display_mode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode: mode })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast(data.message, 'success');
+                    // 清空当前显示
+                    transcriptionDiv.innerHTML = '';
+                } else {
+                    showToast(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showToast('请求错误: ' + error, 'error');
+            });
+        }
+
+        // 切换显示模式时只切换 currentMode 并重渲染
+        document.querySelectorAll('input[name="displayMode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                currentMode = e.target.value;
+                renderTranscription();
+            });
+        });
+
+        function renderTranscription() {
+            transcriptionDiv.innerHTML = '';
+            if (currentMode === 'transcript') {
+                // 连续显示：拼接所有分段文本
+                const entry = document.createElement('div');
+                entry.className = 'transcript-entry';
+                if (showTimestamp && transcriptList.length > 0) {
+                    const timestamp = document.createElement('span');
+                    timestamp.className = 'timestamp';
+                    // 显示第一段的时间戳或可自定义
+                    timestamp.textContent = `[${transcriptList[0].timestamp}]`;
+                    entry.appendChild(timestamp);
+                }
+                const text = document.createElement('span');
+                text.className = 'transcript-text';
+                text.textContent = transcriptList.map(item => item.text).join(' ');
+                entry.appendChild(text);
+                transcriptionDiv.appendChild(entry);
+            } else {
+                // 分段显示
+                transcriptList.forEach(item => {
+                    const entry = document.createElement('div');
+                    entry.className = 'transcript-entry';
+                    if (showTimestamp && item.timestamp) {
+                        const timestamp = document.createElement('span');
+                        timestamp.className = 'timestamp';
+                        timestamp.textContent = `[${item.timestamp}]`;
+                        entry.appendChild(timestamp);
+                    }
+                    const text = document.createElement('span');
+                    text.className = 'transcript-text';
+                    text.textContent = item.text;
+                    entry.appendChild(text);
+                    entry.style.borderBottom = '1px solid var(--border-color)';
+                    entry.style.marginBottom = '1rem';
+                    entry.style.paddingBottom = '0.5rem';
+                    transcriptionDiv.appendChild(entry);
+                });
+            }
+            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
     </script>
 </body>

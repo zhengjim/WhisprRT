@@ -114,3 +114,17 @@ async def toggle_timestamp(request: TimestampRequest):
     
     await transcription_service.broadcast_to_websockets('timestamp_setting', {'show_timestamp': show_timestamp})
     return {"status": "success", "show_timestamp": show_timestamp}
+
+@router.post('/change_display_mode')
+def change_display_mode(request: dict):
+    """
+    切换显示模式
+    
+    Args:
+        request: 包含显示模式的请求对象
+    
+    Returns:
+        操作状态和消息
+    """
+    mode = request.get('mode')
+    return transcription_service.set_display_mode(mode)
