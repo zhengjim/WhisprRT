@@ -407,6 +407,46 @@
         let transcriptList = [];
         let currentMode = "segments"; // 默认分段显示
         
+        // 持久化存储的key
+        const STORAGE_KEY = 'whisprrt_transcript_list';
+        
+        // 从localStorage加载转写记录
+        function loadTranscriptFromStorage() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    transcriptList = JSON.parse(stored);
+                    renderTranscription();
+                    console.log('已从本地存储恢复转写记录:', transcriptList.length, '条');
+                    if (transcriptList.length > 0) {
+                        showToast(`已恢复 ${transcriptList.length} 条转写记录`, 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('从本地存储加载转写记录失败:', error);
+                transcriptList = [];
+                showToast('恢复转写记录失败，将重新开始', 'error');
+            }
+        }
+        
+        // 保存转写记录到localStorage
+        function saveTranscriptToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(transcriptList));
+            } catch (error) {
+                console.error('保存转写记录到本地存储失败:', error);
+            }
+        }
+        
+        // 清除localStorage中的转写记录
+        function clearTranscriptFromStorage() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (error) {
+                console.error('清除本地存储的转写记录失败:', error);
+            }
+        }
+        
         // 连接 WebSocket
         function connectWebSocket() {
             // 使用 wss:// 或 ws:// 取决于当前页面是 https 还是 http
@@ -582,7 +622,12 @@
         }
         
         // 页面加载时连接 WebSocket
-        window.addEventListener('load', connectWebSocket);
+        window.addEventListener('load', function() {
+            // 先从本地存储恢复转写记录
+            loadTranscriptFromStorage();
+            // 然后连接WebSocket
+            connectWebSocket();
+        });
         
         /**
          * 处理转写结果
@@ -594,6 +639,8 @@
                 text: data.text,
                 timestamp: data.timestamp
             });
+            // 保存到本地存储
+            saveTranscriptToStorage();
             renderTranscription();
         }
         
@@ -728,6 +775,8 @@
                 .then(response => response.json())
                 .then(data => {
                     transcriptList = [];
+                    // 清除本地存储
+                    clearTranscriptFromStorage();
                     renderTranscription();
                     showToast('转写记录已清空', 'info');
                 })

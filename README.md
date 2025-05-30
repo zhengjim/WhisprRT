@@ -21,6 +21,7 @@
 - 🚀 **实时转写**：低延迟，快速将语音转为文字。
 - 🔒 **100% 离线**：无需联网，数据不上传，隐私有保障。
 - 🌐 **网页界面**：通过 FastAPI 提供简洁易用的前端。
+- 🛡️ **反幻觉优化**：过滤，减少 large-v3-turbo 模型的幻觉内容。
 
 ---
 
@@ -119,6 +120,60 @@ WhisprRT 默认使用 `large-v3-turbo` 模型，推荐优先使用。如果需�
 
 ---
 
+## 反幻觉功能
+
+针对 `large-v3-turbo` 模型容易出现的幻觉问题（如重复广告文字："优优独播剧场"、"请不吝点赞"等），WhisprRT 内置了多层过滤机制：
+
+### 🛡️ 核心优化
+
+1. **参数调优**
+   - 降低 `temperature` 至 0.0 减少随机性
+   - 提高 `no_speech_threshold` 至 0.6 强化静音检测
+   - 禁用 `condition_on_prev_tokens` 避免循环依赖
+
+2. **智能过滤**
+   - 内置 15+ 幻觉内容检测模式
+   - 自动识别重复文本模式
+   - 置信度门槛过滤低质量结果
+
+3. **音频预处理**
+   - 增强静音检测（能量+零交叉率+频谱分析）
+   - 高通滤波去除低频噪音
+   - 归一化处理提升识别准确性
+
+### 🔧 参数调整
+
+可通过 API 动态调整反幻觉参数：
+
+```bash
+# 获取当前配置
+curl http://127.0.0.1:8000/anti_hallucination_config
+
+# 更新参数
+curl -X POST http://127.0.0.1:8000/update_anti_hallucination_config \
+  -H "Content-Type: application/json" \
+  -d '{"confidence_threshold": 0.7, "silence_threshold": 0.003}'
+
+# 重置为默认值
+curl -X POST http://127.0.0.1:8000/reset_anti_hallucination_config
+```
+
+### 🧪 测试验证
+
+运行内置测试脚本验证反幻觉功能：
+
+```bash
+python test_anti_hallucination.py
+```
+
+测试内容包括：
+- 幻觉内容检测准确性
+- 音频预处理效果
+- 转写质量验证
+- API 配置功能
+
+---
+
 ## 常见问题解答（FAQ）
 
 ### 1. WhisprRT 需要联网吗？
@@ -134,4 +189,21 @@ WhisprRT 默认使用 `large-v3-turbo` 模型，推荐优先使用。如果需�
 
 ### 4. 支持哪些语言？
 基于 Whisper，支持多语言转写，包括中文、英文、日文等。
+
+### 5. 如何解决 large-v3-turbo 的幻觉问题？
+WhisprRT 已内置反幻觉优化，如仍有问题可：
+- 通过 API 提高 `confidence_threshold`（建议 0.7-0.8）
+- 降低 `silence_threshold` 强化静音检测
+- 添加自定义幻觉检测模式到配置文件
+
+### 6. 如何自定义幻觉检测模式？
+编辑 `app/config.py` 中的 `HALLUCINATION_PATTERNS` 列表，添加正则表达式模式：
+
+```python
+HALLUCINATION_PATTERNS = [
+    r"优优独播剧场",
+    r"你的自定义模式",
+    # ... 更多模式
+]
+```
 
